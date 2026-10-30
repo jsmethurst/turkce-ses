@@ -1,5 +1,8 @@
 const { SUPABASE_URL, SUPABASE_KEY } = window.APP_CONFIG;
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const BUILD = "2026-10-30.6";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { lock: async (_name, _timeout, fn) => fn() }, // navigator.locks can hang and block sign-in
+});
 const $app = document.getElementById("app");
 
 const state = {
@@ -27,7 +30,7 @@ function estimateTimings(transcript, duration) {
 /* ---------- data ---------- */
 async function loadRecordings() {
   const { data, error } = await sb.from("recordings").select("*").order("created_at", { ascending: false });
-  if (error) return alert(error.message);
+  if (error) throw error;
   state.recordings = data;
 }
 async function saveRecording(id, patch) {
@@ -66,6 +69,13 @@ async function audioUrl(r) {
   return data?.signedUrl || null;
 }
 
+const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + " timed out. Check your connection and try again.")), ms))]);
+async function enterApp(user) {
+  state.user = user;
+  await withTimeout(loadRecordings(), 15000, "Loading your recordings");
+  render();
+}
+
 /* ---------- views ---------- */
 function render() {
   if (!state.user) return renderAuth();
@@ -87,7 +97,8 @@ function renderAuth() {
     <form class="card" id="authform" novalidate><label>Email</label><input name="email" type="email" autocomplete="username" autocapitalize="off" inputmode="email">
     <label>Password (at least 6 characters)</label><input name="password" type="password" autocomplete="current-password">
     <div class="err" id="autherr"></div>
-    <div class="row"><button type="submit" class="primary grow" id="in">Sign in</button><button type="button" class="grow" id="up">Create account</button></div></form>`;
+    <div class="row"><button type="submit" class="primary grow" id="in">Sign in</button><button type="button" class="grow" id="up">Create account</button></div></form>
+    <p class="muted" style="text-align:center">Version ${BUILD}</p>`;
   const form = document.getElementById("authform"), msg = document.getElementById("autherr");
   const creds = () => {
     const email = form.elements.email.value.trim(), password = form.elements.password.value;
@@ -99,14 +110,21 @@ function renderAuth() {
     e.preventDefault();
     const c = creds(); if (!c) return;
     msg.textContent = "Signing in…";
-    const { error } = await sb.auth.signInWithPassword(c);
-    msg.textContent = error ? error.message : "";
+    try {
+      const { data, error } = await withTimeout(sb.auth.signInWithPassword(c), 20000, "Signing in");
+      if (error) { msg.textContent = error.message; return; }
+      await enterApp(data.user);
+    } catch (e) { msg.textContent = "Error: " + e.message; }
   };
   document.getElementById("up").onclick = async () => {
     const c = creds(); if (!c) return;
     msg.textContent = "Creating account…";
-    const { data, error } = await sb.auth.signUp(c);
-    msg.textContent = error ? error.message : data.session ? "" : "Check your email to confirm, then sign in.";
+    try {
+      const { data, error } = await withTimeout(sb.auth.signUp(c), 20000, "Creating account");
+      if (error) { msg.textContent = error.message; return; }
+      if (!data.session) { msg.textContent = "Check your email to confirm, then sign in."; return; }
+      await enterApp(data.user);
+    } catch (e) { msg.textContent = "Error: " + e.message; }
   };
 }
 
@@ -283,13 +301,9 @@ function renderSettings(v) {
 }
 
 /* ---------- boot ---------- */
-// Never await Supabase calls inside this callback (it holds the auth lock and deadlocks); defer them.
-sb.auth.onAuthStateChange((_e, session) => {
-  state.user = session?.user || null;
-  setTimeout(async () => {
-    if (state.user) await loadRecordings(); else state.recordings = [];
-    render();
-  }, 0);
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === "SIGNED_OUT") { state.user = null; state.recordings = []; state.openId = null; setTimeout(render, 0); }
+  else if (event === "INITIAL_SESSION" && session?.user && !state.user) setTimeout(() => enterApp(session.user).catch((e) => alert(e.message)), 0);
 });
 render();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
