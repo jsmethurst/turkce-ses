@@ -98,11 +98,13 @@ function renderAuth() {
   form.onsubmit = async (e) => {
     e.preventDefault();
     const c = creds(); if (!c) return;
+    msg.textContent = "Signing in…";
     const { error } = await sb.auth.signInWithPassword(c);
-    if (error) msg.textContent = error.message;
+    msg.textContent = error ? error.message : "";
   };
   document.getElementById("up").onclick = async () => {
     const c = creds(); if (!c) return;
+    msg.textContent = "Creating account…";
     const { data, error } = await sb.auth.signUp(c);
     msg.textContent = error ? error.message : data.session ? "" : "Check your email to confirm, then sign in.";
   };
@@ -281,10 +283,13 @@ function renderSettings(v) {
 }
 
 /* ---------- boot ---------- */
-sb.auth.onAuthStateChange(async (_e, session) => {
+// Never await Supabase calls inside this callback (it holds the auth lock and deadlocks); defer them.
+sb.auth.onAuthStateChange((_e, session) => {
   state.user = session?.user || null;
-  if (state.user) await loadRecordings(); else state.recordings = [];
-  render();
+  setTimeout(async () => {
+    if (state.user) await loadRecordings(); else state.recordings = [];
+    render();
+  }, 0);
 });
 render();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
