@@ -1,5 +1,5 @@
 // Minimal app-shell cache so the UI opens offline; data and audio always come from Supabase.
-const CACHE = "shell-v1";
+const CACHE = "shell-v2";
 const SHELL = ["./", "index.html", "style.css", "app.js", "config.js", "icon.svg", "manifest.webmanifest"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))));
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))));

@@ -1,6 +1,6 @@
 {
-  "name": "Türkçe Dinle",
-  "short_name": "Türkçe",
+  "name": "Türkçe Ses",
+  "short_name": "Türkçe Ses",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#faf7f2",

@@ -83,7 +83,7 @@ function render() {
 }
 
 function renderAuth() {
-  $app.innerHTML = `<h1>Türkçe Dinle</h1>
+  $app.innerHTML = `<h1>Türkçe Ses</h1>
     <div class="card"><label>Email</label><input id="em" type="email" autocomplete="email">
     <label>Password</label><input id="pw" type="password" autocomplete="current-password">
     <div class="err" id="err"></div>
