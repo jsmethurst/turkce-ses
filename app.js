@@ -84,17 +84,27 @@ function render() {
 
 function renderAuth() {
   $app.innerHTML = `<h1>Türkçe Ses</h1>
-    <div class="card"><label>Email</label><input id="em" type="email" autocomplete="email">
-    <label>Password</label><input id="pw" type="password" autocomplete="current-password">
-    <div class="err" id="err"></div>
-    <div class="row"><button class="primary grow" id="in">Sign in</button><button class="grow" id="up">Create account</button></div></div>`;
-  document.getElementById("in").onclick = async () => {
-    const { error } = await sb.auth.signInWithPassword({ email: em.value.trim(), password: pw.value });
-    if (error) err.textContent = error.message;
+    <form class="card" id="authform" novalidate><label>Email</label><input name="email" type="email" autocomplete="username" autocapitalize="off" inputmode="email">
+    <label>Password (at least 6 characters)</label><input name="password" type="password" autocomplete="current-password">
+    <div class="err" id="autherr"></div>
+    <div class="row"><button type="submit" class="primary grow" id="in">Sign in</button><button type="button" class="grow" id="up">Create account</button></div></form>`;
+  const form = document.getElementById("authform"), msg = document.getElementById("autherr");
+  const creds = () => {
+    const email = form.elements.email.value.trim(), password = form.elements.password.value;
+    if (!email || !password) { msg.textContent = "Enter your email and a password first."; return null; }
+    if (password.length < 6) { msg.textContent = "Password must be at least 6 characters."; return null; }
+    msg.textContent = ""; return { email, password };
+  };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const c = creds(); if (!c) return;
+    const { error } = await sb.auth.signInWithPassword(c);
+    if (error) msg.textContent = error.message;
   };
   document.getElementById("up").onclick = async () => {
-    const { data, error } = await sb.auth.signUp({ email: em.value.trim(), password: pw.value });
-    err.textContent = error ? error.message : data.session ? "" : "Check your email to confirm, then sign in.";
+    const c = creds(); if (!c) return;
+    const { data, error } = await sb.auth.signUp(c);
+    msg.textContent = error ? error.message : data.session ? "" : "Check your email to confirm, then sign in.";
   };
 }
 
